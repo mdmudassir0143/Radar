@@ -341,6 +341,7 @@ export function App() {
     [analysis, selected],
   );
 
+  const welcome = !premium && !analysis && !loading;
   const inflow = analysis?.payers.reduce((sum, row) => sum + row.usdc, 0) ?? 0;
   const peerCount = analysis?.edges.filter((edge) => edge.kind === "peer").length ?? 0;
   const clusterSize = analysis
@@ -366,16 +367,6 @@ export function App() {
             >
               Radar
             </a>
-            <a
-              className={`nav-link${premium ? " on" : ""}`}
-              href="/premium"
-              onClick={(event) => {
-                event.preventDefault();
-                go("/premium");
-              }}
-            >
-              Premium
-            </a>
           </div>
           <button
             type="button"
@@ -388,12 +379,26 @@ export function App() {
         </div>
       </header>
 
-      <div className="app">
-      <p className="lede">
-        {premium
-          ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
-          : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
-      </p>
+      <div className={`app${welcome ? " welcome" : ""}`}>
+      {welcome ? (
+        <div className="landing">
+          <h1>See who paid a payTo, and where the USDC went</h1>
+          <p>
+            Paste a 58-character Algorand address. Radar reads inbound and outbound USDC, draws the wallet graph, and shows what is still sitting on the payTo.
+          </p>
+          <ul>
+            <li>Wallets that sent USDC in</li>
+            <li>Wallets this payTo paid</li>
+            <li>Links between those wallets</li>
+          </ul>
+        </div>
+      ) : (
+        <p className="lede">
+          {premium
+            ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
+            : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
+        </p>
+      )}
 
       <form className="trace-box" onSubmit={onSubmit}>
         <input

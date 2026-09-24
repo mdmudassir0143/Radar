@@ -172,6 +172,58 @@ a {
   padding: 36px 0 96px;
 }
 
+.app.welcome {
+  padding-top: 72px;
+}
+
+.app.welcome .trace-box {
+  max-width: 38rem;
+}
+
+.landing {
+  max-width: 38rem;
+  margin: 0 0 28px;
+}
+
+.landing h1 {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 4.4vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.landing p {
+  margin: 0 0 18px;
+  color: var(--mute);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.landing ul {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  color: var(--mute);
+  font-size: 15px;
+}
+
+.landing li {
+  position: relative;
+  padding: 5px 0 5px 16px;
+}
+
+.landing li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.7em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--in);
+}
+
 .lede {
   margin: 0 0 22px;
   color: var(--mute);
