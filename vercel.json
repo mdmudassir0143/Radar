@@ -7,6 +7,10 @@
     {
       "source": "/fac/:path*",
       "destination": "https://facilitator.goplausible.xyz/:path*"
+    },
+    {
+      "source": "/((?!idx/|fac/).*)",
+      "destination": "/index.html"
     }
   ]
 }

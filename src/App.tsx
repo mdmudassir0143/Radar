@@ -26,6 +26,7 @@ const SHARE = [
   "var(--mute)",
 ];
 type Theme = "dark" | "light";
+const SNAP = "radar-session";
 
 function readTheme(): Theme {
   const stored = localStorage.getItem("radar-theme");
@@ -38,6 +39,31 @@ function usd(n: number, digits = 2): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })}`;
+}
+
+function cleanPath(path: string): string {
+  const next = path.replace(/\/+$/, "");
+  return next || "/";
+}
+
+function go(to: string) {
+  window.history.pushState({}, "", to);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function readSnap(): {
+  value?: string;
+  analysis?: Analysis | null;
+  selected?: string | null;
+  graph?: GraphView;
+  until?: number | null;
+} {
+  try {
+    const raw = sessionStorage.getItem(SNAP);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 }
 
 function when(ts?: number | null): string {
@@ -83,6 +109,15 @@ function Bars({
           <span className="num">{value(row.value)}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function TraceLoader({ phase }: { phase: string | null }) {
+  return (
+    <div className="loader" role="status" aria-live="polite">
+      <i className="loader-ring" aria-hidden="true" />
+      <p>{phase ?? "Tracing…"}</p>
     </div>
   );
 }
@@ -171,15 +206,18 @@ function EdgeTable({
 }
 
 export function App() {
-  const [value, setValue] = useState("");
+  const snap = useMemo(readSnap, []);
+  const [path, setPath] = useState(() => cleanPath(window.location.pathname));
+  const premium = path === "/premium";
+  const [value, setValue] = useState(snap.value ?? "");
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [graph, setGraph] = useState<GraphView>("in");
+  const [analysis, setAnalysis] = useState<Analysis | null>(snap.analysis ?? null);
+  const [selected, setSelected] = useState<string | null>(snap.selected ?? null);
+  const [graph, setGraph] = useState<GraphView>(snap.graph ?? "in");
   const [theme, setTheme] = useState<Theme>(readTheme);
-  const [until, setUntil] = useState<number | null>(null);
+  const [until, setUntil] = useState<number | null>(snap.until ?? null);
   const [playing, setPlaying] = useState(false);
   const [held, setHeld] = useState<number | null | undefined>(undefined);
   const runId = useRef(0);
@@ -190,12 +228,25 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
+    const onPop = () => setPath(cleanPath(window.location.pathname));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.has("payTo")) {
       url.searchParams.delete("payTo");
       window.history.replaceState(null, "", url);
     }
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      SNAP,
+      JSON.stringify({ value, analysis, selected, graph, until }),
+    );
+  }, [value, analysis, selected, graph, until]);
 
   useEffect(() => {
     setUntil(analysis?.last ?? null);
@@ -304,9 +355,28 @@ export function App() {
     <div>
       <header className="nav">
         <div className="nav-inner">
-          <a className="brand" href="/">
-            Radar
-          </a>
+          <div className="nav-left">
+            <a
+              className="brand"
+              href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                go("/");
+              }}
+            >
+              Radar
+            </a>
+            <a
+              className={`nav-link${premium ? " on" : ""}`}
+              href="/premium"
+              onClick={(event) => {
+                event.preventDefault();
+                go("/premium");
+              }}
+            >
+              Premium
+            </a>
+          </div>
           <button
             type="button"
             className="theme-btn"
@@ -320,7 +390,9 @@ export function App() {
 
       <div className="app">
       <p className="lede">
-        Paste a payTo address to map who sent USDC, who received it, and how those wallets connect.
+        {premium
+          ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
+          : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
       </p>
 
       <form className="trace-box" onSubmit={onSubmit}>
@@ -339,9 +411,9 @@ export function App() {
       </form>
 
       {error ? <p className="status bad">{error}</p> : null}
-      {loading ? <p className="status">{phase ?? "Tracing…"}</p> : null}
+      {loading ? <TraceLoader phase={phase} /> : null}
 
-      {analysis ? (
+      {analysis && !premium && !loading ? (
         <>
           <section className="kpis six">
             <div className="kpi">
@@ -509,56 +581,6 @@ export function App() {
             />
           </section>
 
-          <QualityStrip coverage={analysis.coverage} />
-          <AnomalyTape
-            findings={findings}
-            onOpen={(finding) => {
-              if (finding.address) setSelected(finding.address);
-              if (finding.time) {
-                setPlaying(false);
-                setUntil(finding.time);
-              }
-            }}
-          />
-
-          <div className="chips graph-tabs">
-            <button
-              type="button"
-              className={`chip${graph === "in" ? " on" : ""}`}
-              onClick={() => setGraph("in")}
-            >
-              Into payTo
-            </button>
-            <button
-              type="button"
-              className={`chip${graph === "out" ? " on" : ""}`}
-              onClick={() => setGraph("out")}
-            >
-              Out of payTo
-            </button>
-            <button
-              type="button"
-              className={`chip${graph === "cluster" ? " on" : ""}`}
-              onClick={() => setGraph("cluster")}
-            >
-              All connections
-            </button>
-          </div>
-
-          <div className="legend">
-            <span className="swatch in">into payTo</span>
-            <span className="swatch out">from payTo</span>
-            <span className="swatch peer">between wallets</span>
-          </div>
-
-          {dossier ? (
-            <DossierCard
-              card={dossier}
-              held={held}
-              onClose={() => setSelected(null)}
-            />
-          ) : null}
-
           {analysis.payees.length ? (
             <section className="block">
               <h2>Wallets this payTo sent USDC to</h2>
@@ -643,15 +665,6 @@ export function App() {
             </table>
           </section>
 
-          <section className="block">
-            <h2>Every USDC edge in the cluster</h2>
-            <p className="meta">
-              {analysis.edges.length} directed routes across {clusterSize} wallets.
-              Peer links use the latest 1,000 USDC transfers on each of the top counterparties.
-            </p>
-            <EdgeTable edges={analysis.edges} selected={selected} onSelect={setSelected} />
-          </section>
-
           {analysis.merchant?.resources.length ? (
             <section className="block">
               <h2>Paid resources</h2>
@@ -679,6 +692,73 @@ export function App() {
               </table>
             </section>
           ) : null}
+        </>
+      ) : null}
+
+      {premium && !analysis && !loading ? (
+        <p className="status">Trace a payTo on Radar first, then open Premium.</p>
+      ) : null}
+
+      {analysis && premium && !loading ? (
+        <>
+          <QualityStrip coverage={analysis.coverage} />
+          <AnomalyTape
+            findings={findings}
+            onOpen={(finding) => {
+              if (finding.address) setSelected(finding.address);
+              if (finding.time) {
+                setPlaying(false);
+                setUntil(finding.time);
+              }
+            }}
+          />
+
+          <div className="chips graph-tabs">
+            <button
+              type="button"
+              className={`chip${graph === "in" ? " on" : ""}`}
+              onClick={() => setGraph("in")}
+            >
+              Into payTo
+            </button>
+            <button
+              type="button"
+              className={`chip${graph === "out" ? " on" : ""}`}
+              onClick={() => setGraph("out")}
+            >
+              Out of payTo
+            </button>
+            <button
+              type="button"
+              className={`chip${graph === "cluster" ? " on" : ""}`}
+              onClick={() => setGraph("cluster")}
+            >
+              All connections
+            </button>
+          </div>
+
+          <div className="legend">
+            <span className="swatch in">into payTo</span>
+            <span className="swatch out">from payTo</span>
+            <span className="swatch peer">between wallets</span>
+          </div>
+
+          {dossier ? (
+            <DossierCard
+              card={dossier}
+              held={held}
+              onClose={() => setSelected(null)}
+            />
+          ) : null}
+
+          <section className="block">
+            <h2>Every USDC edge in the cluster</h2>
+            <p className="meta">
+              {analysis.edges.length} directed routes across {clusterSize} wallets.
+              Peer links use the latest 1,000 USDC transfers on each of the top counterparties.
+            </p>
+            <EdgeTable edges={analysis.edges} selected={selected} onSelect={setSelected} />
+          </section>
         </>
       ) : null}
       </div>
