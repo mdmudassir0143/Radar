@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/idx/:path*",
+      "destination": "https://mainnet-idx.algonode.cloud/:path*"
+    },
+    {
+      "source": "/fac/:path*",
+      "destination": "https://facilitator.goplausible.xyz/:path*"
+    }
+  ]
+}
