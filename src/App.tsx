@@ -15,6 +15,7 @@ import {
 } from "./graphs";
 import { ClockBars, CumulLine, DegreeBars, DelayHist, DualLine, FlowRiver, LinkGrid, MixBars, ShareRing, VolumeBars, WhereNow } from "./charts";
 import { FraudView } from "./fraud-view";
+import { GoPlausibleView } from "./goplausible-view";
 import { AnomalyTape, DossierCard, QualityStrip, TimeScrub } from "./mission";
 import { delayStats, formatGap } from "./stats";
 import { dossierFor, findAnomalies, sliceAnalysis } from "./telemetry";
@@ -212,6 +213,7 @@ export function App() {
   const [path, setPath] = useState(() => cleanPath(window.location.pathname));
   const premium = path === "/premium";
   const fraud = path === "/fraud";
+  const goplausible = path === "/goplausible";
   const [value, setValue] = useState(snap.value ?? "");
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
@@ -344,7 +346,7 @@ export function App() {
     [analysis, selected],
   );
 
-  const welcome = !premium && !fraud && !analysis && !loading;
+  const welcome = !premium && !fraud && !goplausible && !analysis && !loading;
   const delays = useMemo(() => (analysis ? delayStats(analysis.events) : null), [analysis]);
   const days =
     analysis?.first && analysis.last
@@ -414,29 +416,33 @@ export function App() {
             ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
             : fraud
               ? "Whether inbound looks like x402 micros, or just a few large tickets on the leaderboard — then script, engine, or keeper."
-              : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
+              : goplausible
+                ? "Every team on the GoPlausible x402 challenge board — volume over time, rank up and down."
+                : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
         </p>
       )}
 
-      <form className="trace-box" onSubmit={onSubmit}>
-        <input
-          name="payTo"
-          aria-label="payTo address"
-          placeholder="enter payto address"
-          value={value}
-          spellCheck={false}
-          autoCapitalize="characters"
-          onChange={(event) => setValue(event.target.value.trim())}
-        />
-        <button type="submit" disabled={loading}>
-          {loading ? "Tracing…" : "Trace"}
-        </button>
-      </form>
+      {!goplausible ? (
+        <form className="trace-box" onSubmit={onSubmit}>
+          <input
+            name="payTo"
+            aria-label="payTo address"
+            placeholder="enter payto address"
+            value={value}
+            spellCheck={false}
+            autoCapitalize="characters"
+            onChange={(event) => setValue(event.target.value.trim())}
+          />
+          <button type="submit" disabled={loading}>
+            {loading ? "Tracing…" : "Trace"}
+          </button>
+        </form>
+      ) : null}
 
       {error ? <p className="status bad">{error}</p> : null}
       {loading ? <TraceLoader phase={phase} /> : null}
 
-      {analysis && !premium && !fraud && !loading ? (
+      {analysis && !premium && !fraud && !goplausible && !loading ? (
         <>
           <section className="kpis six">
             <div className="kpi">
@@ -767,7 +773,9 @@ export function App() {
         </>
       ) : null}
 
-      {(premium || fraud) && !analysis && !loading ? (
+      {goplausible ? <GoPlausibleView /> : null}
+
+      {(premium || fraud) && !goplausible && !analysis && !loading ? (
         <p className="status">
           {fraud
             ? "Trace a payTo on Radar first, then open /fraud."

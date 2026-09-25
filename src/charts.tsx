@@ -1,3 +1,4 @@
+import { useState, type MouseEvent } from "react";
 import { shortAddr, type Analysis, type WalletEdge } from "./api";
 import { IN, OUT, PEER } from "./graphs";
 import type { DelayStats } from "./stats";
@@ -5,6 +6,263 @@ import type { DelayStats } from "./stats";
 const MUTE = "var(--mute)";
 const INK = "var(--ink)";
 const RULE = "var(--rule)";
+
+const LINES = [
+  IN,
+  "var(--ice)",
+  PEER,
+  OUT,
+  "var(--warn)",
+  "var(--share-5)",
+  "var(--mute)",
+  "#8fa0c4",
+];
+
+function usdShort(n: number): string {
+  if (n >= 1000) return `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  if (n >= 100) return `$${n.toFixed(0)}`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  return `$${n.toFixed(2)}`;
+}
+
+function linePath(
+  vals: (number | null)[],
+  x: (i: number) => number,
+  y: (v: number) => number,
+): string {
+  let d = "";
+  let drawing = false;
+  vals.forEach((v, i) => {
+    if (v == null) {
+      drawing = false;
+      return;
+    }
+    d += `${drawing ? "L" : "M"} ${x(i)} ${y(v)} `;
+    drawing = true;
+  });
+  return d.trim();
+}
+
+export function MultiLine({
+  title,
+  labels,
+  series,
+  teams,
+  picked,
+  onPick,
+}: {
+  title: string;
+  labels: string[];
+  series: { id?: string; name: string; values: (number | null)[] }[];
+  teams?: { id: string; name: string; rank: number }[];
+  picked?: string;
+  onPick?: (id: string) => void;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const focus = picked || null;
+  const w = 760;
+  const h = 300;
+  const pad = { l: 52, r: 16, t: 20, b: 36 };
+  const nums = series.flatMap((row) => row.values.filter((v): v is number => v != null));
+  const max = Math.max(...nums, 0.01);
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const x = (i: number) =>
+    pad.l + (labels.length <= 1 ? innerW / 2 : (i / (labels.length - 1)) * innerW);
+  const y = (v: number) => pad.t + innerH - (v / max) * innerH;
+  const skip = labels.length > 8 ? Math.ceil(labels.length / 7) : 1;
+  const ticks = [0, 0.5, 1];
+  let latest = labels.length - 1;
+  for (let i = labels.length - 1; i >= 0; i -= 1) {
+    if (series.some((row) => row.values[i] != null)) {
+      latest = i;
+      break;
+    }
+  }
+  const day = hover ?? latest;
+  const dayRows = series
+    .map((row, i) => ({
+      name: row.name,
+      value: row.values[day] ?? null,
+      color: LINES[i % LINES.length],
+    }))
+    .filter((row) => row.value != null)
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  const dayTotal = dayRows.reduce((sum, row) => sum + (row.value ?? 0), 0);
+
+  function nearest(event: MouseEvent<SVGSVGElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const px = ((event.clientX - rect.left) / rect.width) * w;
+    let best = 0;
+    let dist = Infinity;
+    for (let i = 0; i < labels.length; i += 1) {
+      const d = Math.abs(x(i) - px);
+      if (d < dist) {
+        dist = d;
+        best = i;
+      }
+    }
+    setHover(best);
+  }
+
+  return (
+    <div className="instrument wide">
+      <div className="chart-head">
+        <div>
+          <p className="meta">{title}</p>
+          <p className="chart-hint">Hover a day for USDC.</p>
+        </div>
+        {teams?.length && onPick ? (
+          <label className="chart-pick">
+            <span>Team</span>
+            <select value={picked ?? ""} onChange={(event) => onPick(event.target.value)}>
+              <option value="">Top 6 overlay</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.rank}. {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
+      <div className="chart-frame">
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          className="instrument-svg tall"
+          onMouseMove={nearest}
+          onMouseLeave={() => setHover(null)}
+        >
+          {ticks.map((t) => (
+            <g key={t}>
+              <line
+                x1={pad.l}
+                x2={w - pad.r}
+                y1={y(max * t)}
+                y2={y(max * t)}
+                stroke={RULE}
+              />
+              <text x={pad.l - 8} y={y(max * t) + 4} textAnchor="end" fill={MUTE} fontSize="11">
+                {usdShort(max * t)}
+              </text>
+            </g>
+          ))}
+          {series.map((row, i) => {
+            const dim = focus != null && focus !== row.name;
+            return (
+              <path
+                key={row.name}
+                d={linePath(row.values, x, y)}
+                fill="none"
+                stroke={LINES[i % LINES.length]}
+                strokeWidth={focus === row.name ? 3 : 2.2}
+                opacity={dim ? 0.16 : 0.95}
+              />
+            );
+          })}
+          {series.map((row, i) =>
+            row.values.map((v, j) =>
+              v == null ? null : (
+                <circle
+                  key={`${row.name}-${j}`}
+                  cx={x(j)}
+                  cy={y(v)}
+                  r={hover === j ? 4.5 : 3}
+                  fill={LINES[i % LINES.length]}
+                  opacity={focus != null && focus !== row.name ? 0.16 : 1}
+                />
+              ),
+            ),
+          )}
+          {hover != null ? (
+            <line
+              x1={x(hover)}
+              x2={x(hover)}
+              y1={pad.t}
+              y2={h - pad.b}
+              stroke={INK}
+              strokeOpacity="0.35"
+            />
+          ) : null}
+          {labels.map((label, i) =>
+            i % skip === 0 ? (
+              <text
+                key={`${label}-${i}`}
+                x={x(i)}
+                y={h - 10}
+                textAnchor="middle"
+                fill={hover === i ? INK : MUTE}
+                fontSize="11"
+              >
+                {label}
+              </text>
+            ) : null,
+          )}
+        </svg>
+        {!series.some((row) => row.values.some((value) => value != null)) ? (
+          <p className="chart-hint">No volume history for this team yet.</p>
+        ) : null}
+        {dayRows.length ? (
+          <div className="chart-tip">
+            <b>
+              {labels[day]}
+              <span>{usdShort(dayTotal)} that day</span>
+            </b>
+            <ul>
+              {dayRows.map((row) => (
+                <li key={row.name} className={focus === row.name ? "on" : ""}>
+                  <i style={{ background: row.color }} />
+                  <em>{row.name}</em>
+                  <strong>{usdShort(row.value ?? 0)}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+      <div className="legend tight">
+        {series.map((row, i) => (
+          <span
+            key={row.id ?? row.name}
+            className="swatch custom"
+            style={{ ["--swatch" as string]: LINES[i % LINES.length] }}
+          >
+            {row.name}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ClimbBars({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { label: string; value: number }[];
+}) {
+  const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1);
+  return (
+    <div className="instrument">
+      <p className="meta">{title}</p>
+      {rows.map((row) => (
+        <div key={row.label} className="deg">
+          <span className="mono">{row.label}</span>
+          <div className="deg-track">
+            <div
+              className={`deg-fill${row.value < 0 ? " down" : row.value > 0 ? "" : " flat"}`}
+              style={{ width: `${(Math.abs(row.value) / max) * 100}%` }}
+            />
+          </div>
+          <span className="num">
+            {row.value > 0 ? `↑${row.value}` : row.value < 0 ? `↓${-row.value}` : "•"}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function DualLine({
   title,

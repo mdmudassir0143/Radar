@@ -493,6 +493,20 @@ a {
   margin-top: 8px;
 }
 
+button.swatch {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.swatch.off {
+  opacity: 0.35;
+}
+
 .swatch::before {
   content: "";
   display: inline-block;
@@ -513,6 +527,68 @@ a {
 
 .swatch.peer::before {
   background: var(--peer);
+}
+
+.swatch.custom::before {
+  background: var(--swatch, var(--mute));
+}
+
+.deg-fill.down {
+  background: var(--out);
+}
+
+.deg-fill.flat {
+  background: var(--mute);
+  opacity: 0.4;
+}
+
+.team-list {
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--soft);
+  padding: 16px;
+}
+
+.team-list .meta {
+  margin-bottom: 10px;
+}
+
+.team-row {
+  display: grid;
+  grid-template-columns: 28px 36px minmax(0, 140px) 1fr 72px 56px;
+  gap: 8px;
+  align-items: center;
+  margin: 7px 0;
+  font-size: 13px;
+}
+
+.team-row .climb {
+  font-size: 12px;
+  color: var(--mute);
+}
+
+.team-row .climb.up {
+  color: var(--ice);
+}
+
+.team-row .climb.down {
+  color: var(--out);
+}
+
+.team-row.blocked .name {
+  color: var(--warn);
+}
+
+@media (max-width: 720px) {
+  .team-row {
+    grid-template-columns: 24px 32px minmax(0, 1fr) 64px;
+  }
+
+  .team-row .host,
+  .team-row .settles {
+    display: none;
+  }
 }
 
 .telemetry {
@@ -818,6 +894,125 @@ a {
   height: 180px;
   display: block;
   font-family: "Josefin Sans", system-ui, sans-serif;
+}
+
+.instrument-svg.tall {
+  height: 320px;
+}
+
+.chart-hint {
+  margin: 0 0 8px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.chart-head .chart-hint {
+  margin: 4px 0 0;
+}
+
+.chart-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--mute);
+  font-size: 12px;
+  min-width: min(240px, 46vw);
+}
+
+.chart-pick select {
+  appearance: none;
+  width: 100%;
+  padding: 8px 28px 8px 12px;
+  color: var(--ink);
+  background: var(--void);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--mute) 50%),
+    linear-gradient(135deg, var(--mute) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.chart-frame {
+  position: relative;
+}
+
+.chart-tip {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  min-width: 168px;
+  max-width: 240px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--void));
+  border: 1px solid var(--rule);
+  border-radius: var(--soft);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.chart-tip b {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.chart-tip b span {
+  color: var(--mute);
+  font-weight: 500;
+}
+
+.chart-tip ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chart-tip li {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0;
+  color: var(--mute);
+}
+
+.chart-tip li.on,
+.chart-tip li.on em,
+.chart-tip li.on strong {
+  color: var(--ink);
+}
+
+.chart-tip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.chart-tip em {
+  font-style: normal;
+}
+
+.chart-tip strong {
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .instrument-svg.river {

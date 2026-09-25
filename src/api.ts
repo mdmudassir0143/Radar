@@ -1,4 +1,5 @@
 import { buildCoverage } from "./telemetry";
+import type { BoardSnap, SparkPoint } from "./board";
 
 export const USDC_ASA = 31566704;
 export const ADDR_RE = /^[A-Z2-7]{58}$/;
@@ -212,9 +213,11 @@ type LeaderItem = {
   id: string;
   label: string;
   sub: string | null;
+  logo?: string | null;
   address: string | null;
   volume: number;
   settles: number;
+  delta?: number | null;
   bazaar?: boolean;
   challenge?: boolean;
   blocked?: { reason?: string } | null;
@@ -245,7 +248,70 @@ type MerchantDetail = {
     settles: number;
     volume: number;
   }[];
+  sparkline?: SparkPoint[];
 };
+
+function toBoardItem(item: LeaderItem) {
+  return {
+    rank: item.rank,
+    id: item.id,
+    label: item.label,
+    sub: item.sub,
+    logo: item.logo ?? null,
+    address: item.address,
+    volume: item.volume,
+    settles: item.settles,
+    delta: item.delta ?? null,
+    bazaar: item.bazaar,
+    challenge: item.challenge,
+    blocked: item.blocked ?? null,
+  };
+}
+
+export async function loadChallengeBoard(range: string): Promise<BoardSnap> {
+  const items: BoardSnap["items"] = [];
+  let total = 0;
+  for (let offset = 0; offset < 400; offset += 50) {
+    const qs = new URLSearchParams({
+      cat: "merchants",
+      limit: "50",
+      offset: String(offset),
+      range,
+      env: "mainnet",
+      src: "x402-global-challenge",
+    });
+    const page = await fac<LeaderPage>(`/data/leaderboards?${qs}`);
+    total = page.total ?? items.length;
+    items.push(...(page.items ?? []).map(toBoardItem));
+    if (!(page.items?.length ?? 0) || (page.items?.length ?? 0) < 50 || items.length >= total) break;
+  }
+  return { range, total, items };
+}
+
+export async function loadMerchantPulses(
+  ids: string[],
+): Promise<Record<string, { sparkline: SparkPoint[]; avgTicket?: number; payers?: number }>> {
+  const out: Record<string, { sparkline: SparkPoint[]; avgTicket?: number; payers?: number }> = {};
+  let cursor = 0;
+  async function worker() {
+    while (cursor < ids.length) {
+      const id = ids[cursor];
+      cursor += 1;
+      try {
+        const detail = await fac<MerchantDetail>(`/data/merchants/${id}`);
+        out[id] = {
+          sparkline: detail.sparkline ?? [],
+          avgTicket: detail.avgTicket,
+          payers: detail.payers,
+        };
+      } catch {
+        out[id] = { sparkline: [] };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(6, ids.length || 1) }, () => worker()));
+  return out;
+}
 
 export async function loadChallengeHints(): Promise<ChallengeRow[]> {
   const pages = await Promise.all(
