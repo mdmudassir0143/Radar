@@ -406,6 +406,75 @@ a {
   border-color: color-mix(in srgb, var(--warn) 50%, var(--rule));
 }
 
+.kind-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0 16px;
+}
+
+.kind-chip {
+  padding: 14px 12px 12px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--soft);
+}
+
+.kind-chip b {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: lowercase;
+}
+
+.kind-chip span:last-child {
+  display: block;
+  margin-top: 4px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.kind-bar {
+  display: block;
+  height: 6px;
+  margin-bottom: 10px;
+  background: var(--track);
+  border-radius: 999px;
+}
+
+.kind-chip.on .kind-bar {
+  background: var(--ice);
+}
+
+.kind-chip.on.script .kind-bar,
+.kind-chip.on.engine .kind-bar,
+.kind-chip.on.keeper .kind-bar {
+  background: var(--warn);
+}
+
+.kind-chip.on {
+  border-color: color-mix(in srgb, var(--ice) 40%, var(--rule));
+}
+
+.kind-chip.on.script,
+.kind-chip.on.engine,
+.kind-chip.on.keeper,
+.kind-chip.on.inflate,
+.kind-chip.on.plain {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--rule));
+}
+
+.kind-chip.on.inflate .kind-bar,
+.kind-chip.on.plain .kind-bar {
+  background: var(--warn);
+}
+
+@media (max-width: 720px) {
+  .kind-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .fraud .kpis {
   margin-top: 8px;
 }
@@ -808,6 +877,21 @@ a {
   background: var(--track);
   border-radius: 999px;
   overflow: hidden;
+}
+
+.deg-track.tall {
+  height: 10px;
+  margin-top: 12px;
+}
+
+.meter-val {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.instrument.hot {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--rule));
 }
 
 .deg-fill {

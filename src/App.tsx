@@ -413,7 +413,7 @@ export function App() {
           {premium
             ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
             : fraud
-              ? "Whether this payTo looks scripted, engine-driven, or keeper-timed."
+              ? "Whether inbound looks like x402 micros, or just a few large tickets on the leaderboard — then script, engine, or keeper."
               : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
         </p>
       )}

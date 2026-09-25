@@ -193,11 +193,13 @@ export function MixBars({
   inbound,
   outbound,
   peer,
+  names = { inbound: "in", outbound: "out", peer: "peer" },
 }: {
   title: string;
   inbound: number;
   outbound: number;
   peer: number;
+  names?: { inbound: string; outbound: string; peer: string };
 }) {
   const total = inbound + outbound + peer || 1;
   return (
@@ -209,9 +211,17 @@ export function MixBars({
         <span style={{ width: `${(peer / total) * 100}%`, background: PEER }} />
       </div>
       <div className="legend tight">
-        <span className="swatch in">{inbound} in</span>
-        <span className="swatch out">{outbound} out</span>
-        <span className="swatch peer">{peer} peer</span>
+        <span className="swatch in">
+          {inbound} {names.inbound}
+        </span>
+        <span className="swatch out">
+          {outbound} {names.outbound}
+        </span>
+        {peer ? (
+          <span className="swatch peer">
+            {peer} {names.peer}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -512,6 +522,104 @@ export function CumulLine({
           ) : null,
         )}
       </svg>
+    </div>
+  );
+}
+
+export function Gauge({
+  title,
+  value,
+  cap,
+  warn = "high",
+}: {
+  title: string;
+  value: number;
+  cap: string;
+  warn?: "high" | "low";
+}) {
+  const n = Math.max(0, Math.min(100, value));
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  const len = (n / 100) * c * 0.75;
+  const rest = c - len;
+  return (
+    <div className="instrument">
+      <p className="meta">{title}</p>
+      <svg viewBox="0 0 140 120" className="instrument-svg ring">
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke={RULE}
+          strokeWidth="12"
+          strokeDasharray={`${c * 0.75} ${c}`}
+          transform="rotate(135 70 70)"
+        />
+        <circle
+          cx="70"
+          cy="70"
+          r={r}
+          fill="none"
+          stroke={(warn === "low" ? n < 50 : n >= 40) ? "var(--warn)" : IN}
+          strokeWidth="12"
+          strokeDasharray={`${len} ${rest}`}
+          transform="rotate(135 70 70)"
+        />
+        <text x="70" y="66" textAnchor="middle" fill={INK} fontSize="22">
+          {Math.round(n)}
+        </text>
+        <text x="70" y="86" textAnchor="middle" fill={MUTE} fontSize="10">
+          {cap}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+export function Meter({
+  title,
+  value,
+  max,
+  hint,
+  hot,
+}: {
+  title: string;
+  value: number;
+  max: number;
+  hint: string;
+  hot?: boolean;
+}) {
+  const pct = Math.min(100, (value / Math.max(max, 0.01)) * 100);
+  return (
+    <div className={`instrument${hot ? " hot" : ""}`}>
+      <p className="meta">{title}</p>
+      <p className="meter-val">{hint}</p>
+      <div className="deg-track tall">
+        <div className="deg-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export function Spark({ title, values, hint }: { title: string; values: number[]; hint: string }) {
+  const w = 420;
+  const h = 160;
+  const pad = { l: 10, r: 10, t: 16, b: 20 };
+  const max = Math.max(...values, 1);
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const x = (i: number) =>
+    pad.l + (values.length <= 1 ? innerW / 2 : (i / (values.length - 1)) * innerW);
+  const y = (v: number) => pad.t + innerH - (v / max) * innerH;
+  const path = values.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(v)}`).join(" ");
+  return (
+    <div className="instrument wide">
+      <p className="meta">{title}</p>
+      <svg viewBox={`0 0 ${w} ${h}`} className="instrument-svg">
+        <path d={path} fill="none" stroke={IN} strokeWidth="1.8" />
+      </svg>
+      <p className="meta">{hint}</p>
     </div>
   );
 }

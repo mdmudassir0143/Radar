@@ -88,4 +88,56 @@ describe("fraudReport", () => {
     expect(report.kind).toBe("human");
     expect(report.score).toBeLessThan(40);
   });
+
+  it("calls a stream of $0.20 x402 notes a micro use case", () => {
+    const events = Array.from({ length: 20 }, (_, i) => ev(1_800_000_000 + i * 90, 0.2));
+    const report = fraudReport(analysis(events));
+    expect(report.use.kind).toBe("micro");
+    expect(report.use.fit).toBeGreaterThanOrEqual(70);
+    expect(report.use.medianTicket).toBeCloseTo(0.2);
+  });
+
+  it("flags a few $500 settles as leaderboard inflate, not x402 micros", () => {
+    const events = [
+      ev(1_800_000_000, 500),
+      ev(1_800_086_400, 500),
+      ev(1_800_172_800, 480),
+    ];
+    const report = fraudReport(analysis(events));
+    expect(report.use.kind).toBe("inflate");
+    expect(report.use.fit).toBeLessThan(40);
+    expect(report.use.macroVolShare).toBeGreaterThan(0.9);
+    expect(report.use.avgTicket).toBeGreaterThan(400);
+  });
+
+  it("calls a mix of cents and $80 tickets mixed", () => {
+    const events = [
+      ...Array.from({ length: 8 }, (_, i) => ev(1_800_000_000 + i * 80, 0.25)),
+      ev(1_800_001_000, 80),
+      ev(1_800_002_000, 80),
+    ];
+    const report = fraudReport(analysis(events));
+    expect(report.use.kind).toBe("mixed");
+  });
+
+  it("flags many $1 settles plus a few $500 as inflate when volume is not micro", () => {
+    const events = [
+      ...Array.from({ length: 70 }, (_, i) => ev(1_800_000_000 + i * 60, 1)),
+      ...Array.from({ length: 10 }, (_, i) => ev(1_800_100_000 + i * 1000, 400)),
+    ];
+    const report = fraudReport(analysis(events));
+    expect(report.use.kind).toBe("inflate");
+    expect(report.use.macroVolShare).toBeGreaterThan(0.9);
+    expect(report.use.fit).toBeLessThan(50);
+  });
+
+  it("calls inbound with no x402 notes plain", () => {
+    const events = Array.from({ length: 6 }, (_, i) => ({
+      ...ev(1_800_000_000 + i * 200, 0.4),
+      x402: false,
+    }));
+    const report = fraudReport(analysis(events));
+    expect(report.use.kind).toBe("plain");
+    expect(report.use.x402Share).toBe(0);
+  });
 });
