@@ -54,6 +54,13 @@ function go(to: string) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
+const ROUTES = [
+  { to: "/", label: "Trace" },
+  { to: "/premium", label: "Premium" },
+  { to: "/fraud", label: "Fraud" },
+  { to: "/goplausible", label: "GoPlausible" },
+] as const;
+
 function readSnap(): {
   value?: string;
   analysis?: Analysis | null;
@@ -385,6 +392,21 @@ export function App() {
             >
               Radar
             </a>
+            <nav className="nav-links" aria-label="Radar pages">
+              {ROUTES.map((route) => (
+                <a
+                  key={route.to}
+                  href={route.to}
+                  className={`nav-link${path === route.to ? " on" : ""}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    go(route.to);
+                  }}
+                >
+                  {route.label}
+                </a>
+              ))}
+            </nav>
           </div>
           <button
             type="button"

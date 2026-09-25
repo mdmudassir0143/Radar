@@ -121,18 +121,53 @@ a {
 .nav-left {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 22px;
+  min-width: 0;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .nav-link {
   color: var(--mute);
   text-decoration: none;
   font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
 }
 
 .nav-link.on,
 .nav-link:hover {
   color: var(--ink);
+}
+
+.nav-link.on {
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+@media (max-width: 720px) {
+  .nav-inner {
+    height: auto;
+    min-height: 60px;
+    padding: 10px 0;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .nav-left {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .nav-links {
+    width: 100%;
+  }
 }
 
 .brand {
