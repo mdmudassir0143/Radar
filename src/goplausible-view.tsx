@@ -18,13 +18,6 @@ function money(n: number): string {
   return `$${n.toFixed(4)}`;
 }
 
-function climbLabel(n: number | null): string {
-  if (n == null) return "—";
-  if (n > 0) return `↑${n}`;
-  if (n < 0) return `↓${-n}`;
-  return "•";
-}
-
 export function GoPlausibleView() {
   const [rows, setRows] = useState<TeamRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -173,28 +166,6 @@ export function GoPlausibleView() {
         />
       </section>
 
-      <section className="team-list">
-        <p className="meta">Every challenge team — rank, 24h move, volume</p>
-        {rows.map((row) => (
-          <div key={row.id} className={`team-row${row.blocked ? " blocked" : ""}`}>
-            <span className="num">{row.rankAll}</span>
-            <span
-              className={`climb${(row.climb24 ?? 0) > 0 ? " up" : (row.climb24 ?? 0) < 0 ? " down" : ""}`}
-            >
-              {climbLabel(row.climb24)}
-            </span>
-            <span className="name">{row.name}</span>
-            <div className="deg-track">
-              <div
-                className="deg-fill"
-                style={{ width: `${(row.volAll / Math.max(rows[0]?.volAll ?? 1, 0.01)) * 100}%` }}
-              />
-            </div>
-            <span className="num">{money(row.volAll)}</span>
-            <span className="settles meta">{row.settlesAll}</span>
-          </div>
-        ))}
-      </section>
       <p className="meta">
         Ranks and volume come from the GoPlausible x402 global challenge merchant board. A climb is
         all-time rank minus 24h rank — positive means the team is hotter now than its all-time seat.
