@@ -13,8 +13,10 @@ import {
   kindLabel,
   type GraphView,
 } from "./graphs";
-import { ClockBars, DegreeBars, DualLine, FlowRiver, LinkGrid, MixBars, ShareRing, WhereNow } from "./charts";
+import { ClockBars, CumulLine, DegreeBars, DelayHist, DualLine, FlowRiver, LinkGrid, MixBars, ShareRing, VolumeBars, WhereNow } from "./charts";
+import { FraudView } from "./fraud-view";
 import { AnomalyTape, DossierCard, QualityStrip, TimeScrub } from "./mission";
+import { delayStats, formatGap } from "./stats";
 import { dossierFor, findAnomalies, sliceAnalysis } from "./telemetry";
 
 const SHARE = [
@@ -209,6 +211,7 @@ export function App() {
   const snap = useMemo(readSnap, []);
   const [path, setPath] = useState(() => cleanPath(window.location.pathname));
   const premium = path === "/premium";
+  const fraud = path === "/fraud";
   const [value, setValue] = useState(snap.value ?? "");
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<string | null>(null);
@@ -341,7 +344,20 @@ export function App() {
     [analysis, selected],
   );
 
-  const welcome = !premium && !analysis && !loading;
+  const welcome = !premium && !fraud && !analysis && !loading;
+  const delays = useMemo(() => (analysis ? delayStats(analysis.events) : null), [analysis]);
+  const days =
+    analysis?.first && analysis.last
+      ? Math.max((analysis.last - analysis.first) / 86400, 1 / 24)
+      : 1;
+  const cumul = useMemo(() => {
+    if (!analysis) return [];
+    let acc = 0;
+    return analysis.daily.map((row) => {
+      acc += row.usdc;
+      return acc;
+    });
+  }, [analysis]);
   const inflow = analysis?.payers.reduce((sum, row) => sum + row.usdc, 0) ?? 0;
   const peerCount = analysis?.edges.filter((edge) => edge.kind === "peer").length ?? 0;
   const clusterSize = analysis
@@ -396,7 +412,9 @@ export function App() {
         <p className="lede">
           {premium
             ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
-            : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
+            : fraud
+              ? "Whether this payTo looks scripted, engine-driven, or keeper-timed."
+              : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}
         </p>
       )}
 
@@ -418,7 +436,7 @@ export function App() {
       {error ? <p className="status bad">{error}</p> : null}
       {loading ? <TraceLoader phase={phase} /> : null}
 
-      {analysis && !premium && !loading ? (
+      {analysis && !premium && !fraud && !loading ? (
         <>
           <section className="kpis six">
             <div className="kpi">
@@ -444,6 +462,33 @@ export function App() {
             <div className="kpi">
               <b>{analysis.account ? analysis.account.usdc.toFixed(2) : "—"}</b>
               <span>USDC still on payTo</span>
+            </div>
+          </section>
+
+          <section className="kpis six">
+            <div className="kpi">
+              <b>{usd(inflow / days)}</b>
+              <span>USDC in per day</span>
+            </div>
+            <div className="kpi">
+              <b>{(analysis.incoming / days).toFixed(1)}</b>
+              <span>settles per day</span>
+            </div>
+            <div className="kpi">
+              <b>{delays ? formatGap(delays.median) : "—"}</b>
+              <span>median delay</span>
+            </div>
+            <div className="kpi">
+              <b>{delays ? formatGap(delays.p90) : "—"}</b>
+              <span>p90 delay</span>
+            </div>
+            <div className="kpi">
+              <b>{delays ? delays.cv.toFixed(2) : "—"}</b>
+              <span>delay spread</span>
+            </div>
+            <div className="kpi">
+              <b>{analysis.tickets[0] ? usd(analysis.tickets[0].amount, analysis.tickets[0].amount < 0.01 ? 4 : 2) : "—"}</b>
+              <span>smallest ticket</span>
             </div>
           </section>
 
@@ -527,6 +572,13 @@ export function App() {
               onSelect={setSelected}
             />
             {analysis.daily.length ? (
+              <VolumeBars
+                title="USDC received by UTC day"
+                labels={analysis.daily.map((d) => d.day.slice(5))}
+                values={analysis.daily.map((d) => d.usdc)}
+              />
+            ) : null}
+            {analysis.daily.length ? (
               <DualLine
                 title="USDC in vs out by UTC day"
                 labels={analysis.daily.map((d) => d.day.slice(5))}
@@ -534,6 +586,21 @@ export function App() {
                 outbound={analysis.daily.map((d) => d.outUsdc)}
               />
             ) : null}
+            {analysis.daily.length ? (
+              <VolumeBars
+                title="Inbound settles by UTC day"
+                labels={analysis.daily.map((d) => d.day.slice(5))}
+                values={analysis.daily.map((d) => d.settles)}
+              />
+            ) : null}
+            {cumul.length ? (
+              <CumulLine
+                title="Cumulative USDC received"
+                labels={analysis.daily.map((d) => d.day.slice(5))}
+                values={cumul}
+              />
+            ) : null}
+            {delays ? <DelayHist title="Delay between inbound settles" stats={delays} /> : null}
             <ClockBars title="Inbound volume by UTC hour" hours={analysis.hours} />
             <ShareRing
               title="Share of inbound USDC"
@@ -700,9 +767,15 @@ export function App() {
         </>
       ) : null}
 
-      {premium && !analysis && !loading ? (
-        <p className="status">Trace a payTo on Radar first, then open Premium.</p>
+      {(premium || fraud) && !analysis && !loading ? (
+        <p className="status">
+          {fraud
+            ? "Trace a payTo on Radar first, then open /fraud."
+            : "Trace a payTo on Radar first, then open Premium."}
+        </p>
       ) : null}
+
+      {analysis && fraud && !loading ? <FraudView analysis={analysis} /> : null}
 
       {analysis && premium && !loading ? (
         <>

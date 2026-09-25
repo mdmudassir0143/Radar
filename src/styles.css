@@ -370,6 +370,46 @@ a {
   line-height: 1.35;
 }
 
+.kpi.hot b {
+  color: var(--warn);
+}
+
+.verdict {
+  margin: 20px 0 16px;
+  padding: 22px 20px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--soft);
+}
+
+.verdict b {
+  display: block;
+  font-size: 48px;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.verdict span {
+  color: var(--mute);
+  font-size: 13px;
+}
+
+.verdict p:last-child {
+  margin: 12px 0 0;
+  max-width: 52ch;
+}
+
+.verdict.keeper,
+.verdict.engine,
+.verdict.script {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--rule));
+}
+
+.fraud .kpis {
+  margin-top: 8px;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;

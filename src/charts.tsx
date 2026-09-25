@@ -1,5 +1,6 @@
 import { shortAddr, type Analysis, type WalletEdge } from "./api";
 import { IN, OUT, PEER } from "./graphs";
+import type { DelayStats } from "./stats";
 
 const MUTE = "var(--mute)";
 const INK = "var(--ink)";
@@ -420,6 +421,115 @@ export function LinkGrid({
           </g>
         ))}
       </svg>
+    </div>
+  );
+}
+
+export function VolumeBars({
+  title,
+  labels,
+  values,
+}: {
+  title: string;
+  labels: string[];
+  values: number[];
+}) {
+  const max = Math.max(...values, 0.01);
+  const w = 760;
+  const h = 180;
+  const pad = { l: 36, r: 10, t: 16, b: 28 };
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const gap = 3;
+  const bar = Math.max(2, innerW / Math.max(values.length, 1) - gap);
+  const skip = values.length > 10 ? Math.ceil(values.length / 8) : 1;
+
+  return (
+    <div className="instrument wide">
+      <p className="meta">{title}</p>
+      <svg viewBox={`0 0 ${w} ${h}`} className="instrument-svg">
+        {values.map((value, i) => {
+          const x = pad.l + i * (bar + gap);
+          const bh = (value / max) * innerH;
+          return (
+            <g key={`${labels[i]}-${i}`}>
+              <rect
+                x={x}
+                y={pad.t + innerH - bh}
+                width={bar}
+                height={bh}
+                rx="2"
+                fill={IN}
+                opacity={0.9}
+              />
+              {i % skip === 0 ? (
+                <text x={x + bar / 2} y={h - 8} textAnchor="middle" fill={MUTE} fontSize="10">
+                  {labels[i]}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+export function CumulLine({
+  title,
+  labels,
+  values,
+}: {
+  title: string;
+  labels: string[];
+  values: number[];
+}) {
+  const w = 420;
+  const h = 180;
+  const pad = { l: 36, r: 10, t: 18, b: 28 };
+  const max = Math.max(...values, 0.01);
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const x = (i: number) =>
+    pad.l + (values.length <= 1 ? innerW / 2 : (i / (values.length - 1)) * innerW);
+  const y = (v: number) => pad.t + innerH - (v / max) * innerH;
+  const path = values.map((v, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(v)}`).join(" ");
+  const skip = values.length > 8 ? Math.ceil(values.length / 6) : 1;
+
+  return (
+    <div className="instrument">
+      <p className="meta">{title}</p>
+      <svg viewBox={`0 0 ${w} ${h}`} className="instrument-svg">
+        {[0.25, 0.5, 0.75, 1].map((t) => (
+          <line key={t} x1={pad.l} x2={w - pad.r} y1={y(max * t)} y2={y(max * t)} stroke={RULE} />
+        ))}
+        <path d={path} fill="none" stroke={IN} strokeWidth="2" />
+        {labels.map((label, i) =>
+          i % skip === 0 ? (
+            <text key={`${label}-${i}`} x={x(i)} y={h - 8} textAnchor="middle" fill={MUTE} fontSize="10">
+              {label}
+            </text>
+          ) : null,
+        )}
+      </svg>
+    </div>
+  );
+}
+
+export function DelayHist({ title, stats }: { title: string; stats: DelayStats }) {
+  const max = Math.max(...stats.buckets.map((row) => row.count), 1);
+  return (
+    <div className="instrument">
+      <p className="meta">{title}</p>
+      {stats.buckets.map((row) => (
+        <div key={row.label} className="deg">
+          <span className="mono">{row.label}</span>
+          <div className="deg-track">
+            <div className="deg-fill" style={{ width: `${(row.count / max) * 100}%` }} />
+          </div>
+          <span className="num">{row.count}</span>
+        </div>
+      ))}
     </div>
   );
 }
