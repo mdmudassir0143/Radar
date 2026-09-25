@@ -437,7 +437,7 @@ export function App() {
           {premium
             ? "Coverage, flags, wallet card, and every USDC edge in the cluster."
             : fraud
-              ? "Whether inbound looks like x402 micros, or just a few large tickets on the leaderboard — then script, engine, or keeper."
+              ? "Read this payTo against the GoPlausible merchant policy: synthetic money paths, continuity, and the 1,000 sub-cent monthly allowance."
               : goplausible
                 ? "Every team on the GoPlausible x402 challenge board — volume over time, rank up and down."
                 : "Paste a payTo address to map who sent USDC, who received it, and how those wallets connect."}

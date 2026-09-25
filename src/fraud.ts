@@ -3,6 +3,28 @@ import { delayStats, inboundTimes, type DelayStats } from "./stats";
 
 export type MachineKind = "human" | "script" | "engine" | "keeper";
 export type UseKind = "micro" | "mixed" | "inflate" | "plain";
+export type PolicyKind = "clear" | "watch" | "synthetic" | "quota";
+
+export const SUBCENT_QUOTA = 1000;
+export const POLICY_GUIDE = "https://facilitator.goplausible.xyz/guide/policy";
+
+export type PolicyReport = {
+  kind: PolicyKind;
+  risk: number;
+  parts: { label: string; value: number }[];
+  selfPay: number;
+  fundedBack: number;
+  sentBack: number;
+  newFleet: number;
+  localhost: number;
+  subcent: number;
+  subcentMonth: number;
+  quota: number;
+  continuous: boolean;
+  settleCount: number;
+  pathShare: number;
+  blocked: string | null;
+};
 
 export type UseCase = {
   kind: UseKind;
@@ -44,6 +66,7 @@ export type FraudReport = {
   cadence: number[];
   parts: { label: string; value: number }[];
   use: UseCase;
+  policy: PolicyReport;
 };
 
 const CRON = [60, 120, 180, 300, 600, 900, 1800, 3600];
@@ -247,6 +270,131 @@ export function usecaseOf(inbound: FlowEvent[]): UseCase {
   };
 }
 
+function monthKey(time: number): string {
+  const d = new Date(time * 1000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function isLocalDev(path: string): boolean {
+  const text = path.toLowerCase();
+  return (
+    text.includes("localhost") ||
+    text.includes("127.0.0.1") ||
+    text.includes("0.0.0.0") ||
+    text.includes(".local/") ||
+    text.startsWith("http://127.")
+  );
+}
+
+export function policyOf(analysis: Analysis, now = Date.now() / 1000): PolicyReport {
+  const hub = analysis.address;
+  const inbound = analysis.events.filter((event) => event.kind === "in");
+  const outbound = analysis.events.filter((event) => event.kind === "out");
+  const settleCount = inbound.length;
+  const selfPay = inbound.filter((event) => event.from === hub).length;
+
+  const firstOut = new Map<string, number>();
+  const paidOut = new Set<string>();
+  for (const event of outbound) {
+    paidOut.add(event.to);
+    const prev = firstOut.get(event.to);
+    if (prev == null || event.time < prev) firstOut.set(event.to, event.time);
+  }
+
+  const fundedBack = inbound.filter((event) => {
+    const funded = firstOut.get(event.from);
+    return funded != null && funded < event.time;
+  }).length;
+  const sentBack = inbound.filter((event) => paidOut.has(event.from)).length;
+
+  const span = Math.max((analysis.last ?? 0) - (analysis.first ?? 0), 1);
+  const late = (analysis.first ?? 0) + span * 0.8;
+  const payerSettles = new Map<string, { first: number; count: number }>();
+  for (const event of inbound) {
+    const row = payerSettles.get(event.from) ?? { first: event.time, count: 0 };
+    row.count += 1;
+    row.first = Math.min(row.first, event.time);
+    payerSettles.set(event.from, row);
+  }
+  const newFleet = inbound.filter((event) => {
+    const row = payerSettles.get(event.from);
+    return row != null && row.first >= late && row.count <= 2 && event.from !== hub;
+  }).length;
+
+  const localhost = (analysis.merchant?.resources ?? []).filter((row) =>
+    isLocalDev(row.path),
+  ).length;
+  const subcent = inbound.filter((event) => event.usdc < 0.01).length;
+  const byMonth = new Map<string, number>();
+  for (const event of inbound) {
+    if (event.usdc >= 0.01 || !event.time) continue;
+    const key = monthKey(event.time);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + 1);
+  }
+  const subcentMonth = Math.max(0, ...byMonth.values());
+  const last = analysis.last ?? inbound.at(-1)?.time ?? 0;
+  const continuous = last > 0 && now - last < 3 * 86400;
+  const pathHits = selfPay + fundedBack;
+  const pathShare = settleCount ? pathHits / settleCount : 0;
+  const sendShare = settleCount ? sentBack / settleCount : 0;
+  const fleetShare = settleCount ? newFleet / settleCount : 0;
+
+  let risk = 6;
+  if (pathShare >= 0.25) risk += 28;
+  else if (pathShare >= 0.1) risk += 12;
+  if (selfPay >= 3) risk += 22;
+  if (settleCount && fundedBack / settleCount >= 0.4) risk += 18;
+  if (sendShare >= 0.5) risk += 12;
+  if (fleetShare >= 0.5 && payerSettles.size >= 8) risk += 10;
+  if (localhost) risk += 8;
+  if (continuous && settleCount >= 40 && pathShare >= 0.25) risk += 10;
+  if (!continuous) risk = Math.min(risk, 34);
+  if (pathShare < 0.08 && selfPay === 0) risk = Math.min(risk, 26);
+  if (subcentMonth >= SUBCENT_QUOTA) risk = Math.max(risk, 40);
+  risk = clamp(risk);
+
+  let kind: PolicyKind = "clear";
+  const moneyPath =
+    selfPay >= 3 ||
+    (settleCount >= 16 && fundedBack / settleCount >= 0.4) ||
+    (settleCount >= 16 && sendShare >= 0.4);
+  if (moneyPath && settleCount >= 16 && continuous) {
+    kind = "synthetic";
+  } else if (subcentMonth >= SUBCENT_QUOTA) {
+    kind = "quota";
+  } else if (pathShare >= 0.1 || localhost > 0 || (fleetShare >= 0.45 && payerSettles.size >= 8)) {
+    kind = "watch";
+  }
+
+  const parts: { label: string; value: number }[] = [];
+  if (selfPay) parts.push({ label: "self-pay settles", value: selfPay });
+  if (fundedBack) parts.push({ label: "funded then paid back", value: fundedBack });
+  if (sentBack) parts.push({ label: "money sent back to payers", value: sentBack });
+  if (newFleet) parts.push({ label: "new wallets that only just paid", value: newFleet });
+  if (localhost) parts.push({ label: "localhost / dev resources", value: localhost });
+  if (subcentMonth) parts.push({ label: "sub-cent this month", value: Math.min(subcentMonth, 100) });
+  if (settleCount) parts.push({ label: "settle count (not $)", value: Math.min(settleCount, 100) });
+  if (!parts.length) parts.push({ label: "no synthetic money path", value: risk });
+
+  return {
+    kind,
+    risk,
+    parts,
+    selfPay,
+    fundedBack,
+    sentBack,
+    newFleet,
+    localhost,
+    subcent,
+    subcentMonth,
+    quota: SUBCENT_QUOTA,
+    continuous,
+    settleCount,
+    pathShare,
+    blocked: analysis.merchant?.blocked ?? null,
+  };
+}
+
 export function fraudReport(analysis: Analysis): FraudReport {
   const delays = delayStats(analysis.events);
   const times = inboundTimes(analysis.events);
@@ -384,5 +532,6 @@ export function fraudReport(analysis: Analysis): FraudReport {
     cadence: delays.gaps.slice(0, 48),
     parts,
     use: usecaseOf(inbound),
+    policy: policyOf(analysis),
   };
 }

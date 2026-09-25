@@ -131,6 +131,45 @@ describe("fraudReport", () => {
     expect(report.use.fit).toBeLessThan(50);
   });
 
+  it("does not treat an independent metronome as synthetic — timing never decides", () => {
+    const events = Array.from({ length: 16 }, (_, i) => ev(1_800_000_000 + i * 300, 1.5));
+    const report = fraudReport(analysis(events));
+    expect(report.kind).toBe("keeper");
+    expect(report.policy.kind).toBe("clear");
+    expect(report.policy.selfPay).toBe(0);
+  });
+
+  it("flags the receiving address paying itself as a synthetic money path", () => {
+    const events = Array.from({ length: 24 }, (_, i) => ({
+      from: HUB,
+      to: HUB,
+      usdc: 0.05,
+      time: 1_800_000_000 + i * 90,
+      x402: true,
+      kind: "in" as const,
+    }));
+    const report = fraudReport(analysis(events));
+    expect(report.policy.selfPay).toBe(24);
+    expect(report.policy.kind).toBe("synthetic");
+  });
+
+  it("counts payers the payTo funded before they paid back", () => {
+    const events = [
+      { from: HUB, to: P1, usdc: 2, time: 1_800_000_000, x402: false, kind: "out" as const },
+      ...Array.from({ length: 20 }, (_, i) => ev(1_800_001_000 + i * 80, 0.1)),
+    ];
+    const report = fraudReport(analysis(events));
+    expect(report.policy.fundedBack).toBe(20);
+    expect(report.policy.kind).toBe("synthetic");
+  });
+
+  it("puts a live stream of sub-cent settles over the free monthly allowance on quota", () => {
+    const events = Array.from({ length: 1100 }, (_, i) => ev(1_800_000_000 + i * 30, 0.005));
+    const report = fraudReport(analysis(events));
+    expect(report.policy.subcentMonth).toBeGreaterThan(1000);
+    expect(report.policy.kind).toBe("quota");
+  });
+
   it("calls inbound with no x402 notes plain", () => {
     const events = Array.from({ length: 6 }, (_, i) => ({
       ...ev(1_800_000_000 + i * 200, 0.4),

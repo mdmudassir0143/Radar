@@ -9,7 +9,7 @@ import {
   Spark,
   VolumeBars,
 } from "./charts";
-import { fraudReport } from "./fraud";
+import { fraudReport, POLICY_GUIDE, SUBCENT_QUOTA } from "./fraud";
 import type { Analysis } from "./api";
 
 const KIND: Record<string, string> = {
@@ -24,6 +24,13 @@ const USE: Record<string, string> = {
   mixed: "Mixed — some tickets too big",
   inflate: "Volume inflate — not micros",
   plain: "Missing x402 notes",
+};
+
+const POLICY: Record<string, string> = {
+  clear: "Within facilitator policy",
+  watch: "Some money-path signals",
+  synthetic: "Synthetic traffic pattern",
+  quota: "Sub-cent allowance at risk",
 };
 
 function money(n: number): string {
@@ -52,8 +59,109 @@ export function FraudView({ analysis }: { analysis: Analysis }) {
   const midUsdc = (use.bands[1]?.usdc ?? 0) + (use.bands[2]?.usdc ?? 0);
   const macroUsdc = use.bands[3]?.usdc ?? 0;
 
+  const policy = report.policy;
+  const pathHits = policy.selfPay + policy.fundedBack;
+  const realHits = Math.max(0, policy.settleCount - pathHits);
+  const priced = Math.max(0, policy.settleCount - policy.subcent);
+
   return (
     <div className="fraud">
+      <section className="kind-row use-row">
+        {(["clear", "watch", "synthetic", "quota"] as const).map((kind) => (
+          <div key={kind} className={`kind-chip${policy.kind === kind ? ` on ${kind}` : ""}`}>
+            <span className="kind-bar" />
+            <b>{kind}</b>
+            <span>{POLICY[kind]}</span>
+          </div>
+        ))}
+      </section>
+
+      <section className="instruments">
+        <Gauge title="Policy risk" value={policy.risk} cap={policy.kind} warn="low" />
+        <DegreeBars title="What the facilitator actually weighs" rows={policy.parts} />
+        <Meter
+          title="Self-pay"
+          value={policy.selfPay}
+          max={Math.max(policy.selfPay, policy.settleCount, 4)}
+          hint={`${policy.selfPay} inbound from the receiving address itself`}
+          hot={policy.selfPay >= 3}
+        />
+        <Meter
+          title="Funded, then paid back"
+          value={policy.fundedBack}
+          max={Math.max(policy.fundedBack, policy.settleCount, 4)}
+          hint={`${policy.fundedBack} settles from wallets this payTo funded first`}
+          hot={policy.settleCount > 0 && policy.fundedBack / policy.settleCount >= 0.4}
+        />
+        <Meter
+          title="Money sent back to payers"
+          value={policy.sentBack}
+          max={Math.max(policy.sentBack, policy.settleCount, 4)}
+          hint={`${policy.sentBack} inbound from wallets that also received outbound`}
+          hot={policy.settleCount > 0 && policy.sentBack / policy.settleCount >= 0.4}
+        />
+        <Meter
+          title="New-wallet fleet"
+          value={policy.newFleet}
+          max={Math.max(policy.newFleet, policy.settleCount, 4)}
+          hint={`${policy.newFleet} late, thin payers — fleets that pay only you`}
+          hot={policy.settleCount > 0 && policy.newFleet / policy.settleCount >= 0.45}
+        />
+        <Meter
+          title="Sub-cent vs 1,000 / month"
+          value={policy.subcentMonth}
+          max={SUBCENT_QUOTA}
+          hint={`${policy.subcentMonth} of ${SUBCENT_QUOTA} free MainNet sub-cent settles this UTC month`}
+          hot={policy.subcentMonth >= SUBCENT_QUOTA * 0.9}
+        />
+        <Meter
+          title="Still running"
+          value={policy.continuous ? 1 : 0}
+          max={1}
+          hint={
+            policy.continuous
+              ? "Last settle is recent — continuity counts toward a block"
+              : "Traffic has stopped — merchants who stop are not blocked"
+          }
+          hot={policy.continuous && policy.kind === "synthetic"}
+        />
+        <Meter
+          title="Settle count — not dollars"
+          value={policy.settleCount}
+          max={Math.max(policy.settleCount, 40)}
+          hint={`${policy.settleCount} inbound — policy weighs count and continuity, not USDC volume`}
+          hot={policy.settleCount >= 40 && policy.pathShare >= 0.25}
+        />
+        <MixBars
+          title="Independent vs synthetic money path"
+          inbound={realHits}
+          outbound={pathHits}
+          peer={0}
+          names={{ inbound: "independent", outbound: "self / funded", peer: "" }}
+        />
+        <MixBars
+          title="At least $0.01 vs sub-cent"
+          inbound={priced}
+          outbound={policy.subcent}
+          peer={0}
+          names={{ inbound: "≥ $0.01", outbound: "< $0.01", peer: "" }}
+        />
+      </section>
+      {policy.blocked ? (
+        <p className="status bad">
+          Already blocked on the facilitator: {policy.blocked}. Payer wallets are never blocked.
+        </p>
+      ) : null}
+      <p className="meta">
+        From the{" "}
+        <a href={POLICY_GUIDE} target="_blank" rel="noreferrer">
+          GoPlausible merchant policy
+        </a>
+        : synthetic means the payer is the merchant, a wallet it funded, or a fleet whose money it
+        sends back. Automation, low prices, high volume, and a single endpoint are not held against
+        you. Machine timing never decides a block on its own.
+      </p>
+
       <section className="kind-row use-row">
         {(["micro", "mixed", "inflate", "plain"] as const).map((kind) => (
           <div key={kind} className={`kind-chip${use.kind === kind ? ` on ${kind}` : ""}`}>
@@ -65,8 +173,8 @@ export function FraudView({ analysis }: { analysis: Analysis }) {
       </section>
 
       <section className="instruments">
-        <Gauge title="x402 use-case fit" value={use.fit} cap={use.kind} warn="low" />
-        <DegreeBars title="Why this is or isn't x402" rows={use.parts} />
+        <Gauge title="x402 use-case fit — not a block reason" value={use.fit} cap={use.kind} warn="low" />
+        <DegreeBars title="Ticket mix — policy does not weigh volume" rows={use.parts} />
         <Meter
           title="Median ticket"
           value={use.medianTicket}
@@ -142,8 +250,8 @@ export function FraudView({ analysis }: { analysis: Analysis }) {
       </section>
 
       <section className="instruments">
-        <Gauge title="Machine score" value={report.score} cap={report.kind} />
-        <DegreeBars title="Why this score" rows={report.parts} />
+        <Gauge title="Machine timing — never decides alone" value={report.score} cap={report.kind} />
+        <DegreeBars title="Cadence clues only" rows={report.parts} />
         <Meter
           title="Delay spread"
           value={report.delays.gaps.length ? Math.max(0, 1.2 - report.delays.cv) : 0}
@@ -254,8 +362,9 @@ export function FraudView({ analysis }: { analysis: Analysis }) {
         />
       </section>
       <p className="meta">
-        Every chart is a reason. Flat cadence, one ticket, full-clock hours, and cron gaps are what
-        push a payTo toward script, engine, or keeper. This is a pattern read, not a legal finding.
+        Policy first, then ticket mix and cadence. A block is only for continuous, large-scale
+        synthetic traffic, or a sub-cent quota refuse. This is a pattern read against the published
+        guide, not a facilitator decision.
       </p>
     </div>
   );

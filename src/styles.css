@@ -500,8 +500,25 @@ a {
 }
 
 .kind-chip.on.inflate .kind-bar,
-.kind-chip.on.plain .kind-bar {
+.kind-chip.on.plain .kind-bar,
+.kind-chip.on.synthetic .kind-bar,
+.kind-chip.on.quota .kind-bar,
+.kind-chip.on.watch .kind-bar {
   background: var(--warn);
+}
+
+.kind-chip.on.clear .kind-bar {
+  background: var(--ice);
+}
+
+.kind-chip.on.synthetic,
+.kind-chip.on.quota,
+.kind-chip.on.watch {
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--rule));
+}
+
+.kind-chip.on.clear {
+  border-color: color-mix(in srgb, var(--ice) 40%, var(--rule));
 }
 
 @media (max-width: 720px) {
