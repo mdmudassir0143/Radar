@@ -580,10 +580,10 @@ export async function analyzePayTo(
         slot.settles += 1;
         hourMap.set(hour, slot);
       }
+      events.push({ from: tx.sender, to: address, usdc: amount, time, x402: isX402, kind: "in" });
       if (tx.sender !== address) {
         bumpFlow(payerMap, tx.sender, amount, time, isX402);
         bumpEdge(edgeMap, tx.sender, address, amount, time, isX402, "in");
-        events.push({ from: tx.sender, to: address, usdc: amount, time, x402: isX402, kind: "in" });
       }
       const ticket = Math.round(amount * 1e6) / 1e6;
       ticketMap.set(ticket, (ticketMap.get(ticket) ?? 0) + 1);

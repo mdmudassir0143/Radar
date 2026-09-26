@@ -358,7 +358,9 @@ export function policyOf(analysis: Analysis, now = Date.now() / 1000): PolicyRep
     selfPay >= 3 ||
     (settleCount >= 16 && fundedBack / settleCount >= 0.4) ||
     (settleCount >= 16 && sendShare >= 0.4);
-  if (moneyPath && settleCount >= 16 && continuous) {
+  if (selfPay >= 3 && continuous) {
+    kind = "synthetic";
+  } else if (moneyPath && settleCount >= 16 && continuous) {
     kind = "synthetic";
   } else if (subcentMonth >= SUBCENT_QUOTA) {
     kind = "quota";

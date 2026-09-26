@@ -83,8 +83,8 @@ export function FraudView({ analysis }: { analysis: Analysis }) {
           title="Self-pay"
           value={policy.selfPay}
           max={Math.max(policy.selfPay, policy.settleCount, 4)}
-          hint={`${policy.selfPay} inbound from the receiving address itself`}
-          hot={policy.selfPay >= 3}
+          hint={`${policy.selfPay} inbound from this payTo to itself — not eligible under the merchant policy`}
+          hot={policy.selfPay >= 1}
         />
         <Meter
           title="Funded, then paid back"

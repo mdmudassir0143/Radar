@@ -139,6 +139,20 @@ describe("fraudReport", () => {
     expect(report.policy.selfPay).toBe(0);
   });
 
+  it("marks a live self-pay stream as synthetic even when the burst is short", () => {
+    const events = Array.from({ length: 5 }, (_, i) => ({
+      from: HUB,
+      to: HUB,
+      usdc: 0.01,
+      time: 1_800_000_000 + i * 120,
+      x402: true,
+      kind: "in" as const,
+    }));
+    const report = fraudReport(analysis(events));
+    expect(report.policy.selfPay).toBe(5);
+    expect(report.policy.kind).toBe("synthetic");
+  });
+
   it("flags the receiving address paying itself as a synthetic money path", () => {
     const events = Array.from({ length: 24 }, (_, i) => ({
       from: HUB,
